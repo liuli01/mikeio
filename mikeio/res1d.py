@@ -215,6 +215,18 @@ class Res1D:
         self._time_index = pd.DatetimeIndex(time_stamps)
         return self._time_index
 
+    def _get_values_catchment(self, points):
+        df = pd.DataFrame()
+        p = zip(points["variable"], points["catchment"])
+        for variable_type, catchment in p:
+            d = (self.file.Catchments.get_Item(catchment.index)
+                 .get_DataItems()
+                 .get_Item(variable_type.index))
+            name = f"{variable_type.value} {catchment.value}"
+            d = pd.Series(list(d), name=name)
+            df[name] = d
+        return df
+
     def _get_values_reach(self, points):
         df = pd.DataFrame()
         p = zip(points["variable"], points["reach"], points["chainage"])
@@ -229,7 +241,7 @@ class Res1D:
         return df
 
     def _get_data(self, points):
-        df = self._get_values(points)
+        df = self._get_values_reach(points)
         df.index = self.time_index
         return df
 
@@ -286,8 +298,8 @@ class Res1D:
 
         >>> self._build_queries([QueryData("WaterLevel", "reach1")])
         [
-            QueryData("WaterLevel", "reach1", 0),
-            QueryData("WaterLevel", "reach1", 10)
+            QueryReachData("WaterLevel", "reach1", 0),
+            QueryReachData("WaterLevel", "reach1", 10)
         ]
         """
         built_queries = []
@@ -300,6 +312,46 @@ class Res1D:
             q_variable_type = q.variable_type
             q_reach_name = q.reach_name
             for reach, reach_name in zip(self._reaches, self.reach_names):
+                if q_reach_name is not None:  # When reach_name is set.
+                    if reach_name != q_reach_name:
+                        continue
+                data_types_in_reach = self._data_types_reach(reach)
+                if q.variable_type not in data_types_in_reach:
+                    continue
+                data_type_idx = data_types_in_reach.index(q.variable_type)
+                for curr_chain in self._chainages(reach, data_type_idx):
+                    if q_variable_type in DATA_TYPES_HANDLED_IN_QUERIES:
+                        chainage = curr_chain
+                    else:
+                        continue
+
+                    q = QueryData(
+                        q_variable_type, reach_name, round(chainage, 3)
+                    )
+                    built_queries.append(q)
+        return built_queries
+
+    def _build_queries_catchment(self, queries):
+        """"
+        A query can be in an undefined state if reach_name and/or chainage
+        isn't set. This function takes care of building lists of queries
+        for these cases. Chainages are rounded to three decimal places.
+
+        >>> self._build_queries([QueryCatchmentData("WaterLevel", "reach1")])
+        [
+            QueryCatchmentData("WaterLevel", "catchment1")
+        ]
+        """
+        built_queries = []
+        for q in queries:
+            # e.g. QueryCatchmentData("WaterLevel", "catchment1")
+            if q.catchment_id and q.chainage:
+                built_queries.append(q)
+                continue
+            # e.g QueryData("WaterLevel", "reach1") or QueryData("WaterLevel")
+            q_variable_type = q.variable_type
+            q_reach_name = q.reach_name
+            for reach, reach_name in zip(self._catchments, self.catchment_ids):
                 if q_reach_name is not None:  # When reach_name is set.
                     if reach_name != q_reach_name:
                         continue
@@ -367,14 +419,13 @@ class Res1D:
         -------
         pd.DataFrame
         """
-        type(queries) is QueryCatchmentData
-
-        self._validate_queries(queries)
-        built_queries = self._build_queries(queries)
-        found_points = self._find_points(built_queries)
-        
-        df = self._get_data_reach(found_points)
-        
+        if(False):
+            self._validate_queries(queries)
+            built_queries = self._build_queries_reach(queries)
+            found_points = self._find_points(built_queries)
+            df = self._get_data_reach(found_points)
+        else:
+            df = self._get_data_catchment(queries)
         return df
 
 
