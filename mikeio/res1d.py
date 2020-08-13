@@ -15,12 +15,26 @@ from DHI.Mike1D.Generic import Connection  # noqa
 clr.AddReference("System")
 
 # Data types handled by the read function.
-DATA_TYPES_HANDLED_IN_QUERIES = [
+DATA_TYPES_HANDLED_IN_REACH_QUERIES = [
     "WaterLevel",
     "Discharge",
     "Pollutant",
     "LeftLatLinkOutflow",
     "RightLatLinkOutflow",
+]
+
+DATA_TYPES_HANDLED_IN_CATCHMENT_QUERIES = [
+    "TotalRunOff",
+    "NetRainfall",
+    "BaseFlow",
+    "RootZoneStorage",
+    "SnowStorage",
+    "SurfaceStorage",
+    "InterFlow",
+    "OverlandFlow",
+    "ActualEvaporation",
+    "ActualRainfall",
+    "ZoneTemperature"
 ]
 
 class BaseRes1DError(Exception):
@@ -44,7 +58,7 @@ def read(file_path, queries):
     file_path: str
         full path and file name to the res1d file.
     queries: a single query or a list of queries
-        `QueryData` objects that define the requested data.
+        `QueryReachData` and/or QueryCatchmentData objects that define the requested data.
     Returns
     -------
     pd.DataFrame
@@ -98,6 +112,9 @@ class Res1D:
         self._data_types = None
         self._reach_names = None
         self.__reaches = None
+        self._catchment_ids = None
+        self.__catchments = None
+
         # Load the file on initialization
         self._load_file()
 
@@ -136,12 +153,26 @@ class Res1D:
         return list(self.file.Reaches)
 
     @property
+    def _catchments(self):
+        if self.__catchments:
+            return self.__catchments
+        return list(self.file.Catchments)
+
+    @property
     @_not_closed
     def reach_names(self):
         """A list of the reach names"""
         if self._reach_names:
             return self._reach_names
         return [reach.Name for reach in self._reaches]
+
+    @property
+    @_not_closed
+    def catchment_ids(self):
+        """A list of the catchment ids"""
+        if self._catchment_ids:
+            return self._catchment_ids
+        return [catchment.Id for catchment in self._catchments]
 
     @staticmethod
     def _chainages(reach, data_type_idx):
@@ -157,6 +188,11 @@ class Res1D:
     def _data_types_reach(reach):
         """A list of the data types IDs contained in a reach."""
         return [di.get_Quantity().Id for di in list(reach.get_DataItems())]
+
+    @staticmethod
+    def _data_types_catchment(catchment):
+        """A list of the data types IDs contained in a catchment."""
+        return [di.get_Quantity().Id for di in list(catchment.get_DataItems())]
 
     @property
     @_not_closed
@@ -328,7 +364,7 @@ class Res1D:
         return df
 
 
-class QueryData:
+class QueryReachData:
     """A query object that declares what data should be
     extracted from a .res1d file.
     
@@ -344,13 +380,13 @@ class QueryData:
     
     Examples
     --------
-    `QueryData('WaterLevel', 'reach1', 10)` is a valid query.
-    `QueryData('WaterLevel', 'reach1')` requests all the WaterLevel points
+    `QueryReachData('WaterLevel', 'reach1', 10)` is a valid query.
+    `QueryReachData('WaterLevel', 'reach1')` requests all the WaterLevel points
     of `reach1`.
-    `QueryData('Discharge')` requests all the Discharge points of the file.
+    `QueryReachData('Discharge')` requests all the Discharge points of the file.
     """
 
-    allowed_data_types = DATA_TYPES_HANDLED_IN_QUERIES
+    allowed_data_types = DATA_TYPES_HANDLED_IN_REACH_QUERIES
 
     def __init__(self, variable_type, reach_name=None, chainage=None):
         self._variable_type = variable_type
@@ -387,6 +423,80 @@ class QueryData:
     @property
     def chainage(self):
         return self._chainage
+
+    def __repr__(self):
+        return (
+            f"QueryData(variable_type='{self.variable_type}', "
+            f"reach_name='{self.reach_name}', "
+            f"chainage={self.chainage})"
+        )
+
+
+class QueryCatchmentData:
+    """A query object that declares what data should be
+    extracted from a .res1d file.
+    
+    Parameters
+    ----------
+    variable_type: str, optional
+        Either 'TotalRunOff', 'NetRainfall', 'BaseFlow', 'RootZoneStorage', 'SnowStorage',
+            'SurfaceStorage', 'InterFlow', 'OverlandFlow', 'ActualEvaporation', 'ActualRainfall',
+            or 'ZoneTemperature'
+            consider all variable types if None
+    catchment_id: str, optional
+        Catchment id, consider all the catchments if None
+    
+    Examples
+    --------
+    `QueryCatchmentData('TotalRunOff', 'catchment1')` is a valid query.
+    `QueryCatchmentData('SurfaceStorage')` requests all the SurfaceStorage for all the catchments.
+    `QueryCatchmentData('catchment1')` requests all the variables for that catchment.
+    """
+
+    allowed_data_types = DATA_TYPES_HANDLED_IN_CATCHMENT_QUERIES
+
+    def __init__(self, variable_type=None, catchment_id=None):
+        self._variable_type = variable_type
+        self._catchment_id = catchment_id
+        self._validate()
+
+    def _validate(self):
+        vt = self.variable_type
+        cid = self.catchment_id
+
+        if not isinstance(vt, str):
+            raise TypeError("variable_type must be a string.")
+        if not vt in self.allowed_data_types:
+            raise ValueError(
+                f"Undefined variable_type {vt}. Allowed types are: "
+                f"{', '.join(self.allowed_data_types)}."
+            )
+        if rn is not None and not isinstance(rn, str):
+            raise TypeError("reach_name must be either None or a string.")
+        if c is not None and not isinstance(c, (int, float)):
+            raise TypeError("chainage must be either None or a number.")
+        if rn is None and c is not None:
+            raise ValueError("chainage cannot be set if reach_name is None.")
+
+    @property
+    def variable_type(self):
+        return self._variable_type
+
+    @property
+    def reach_name(self):
+        return self._reach_name
+
+    @property
+    def chainage(self):
+        return self._chainage
+
+    @property
+    def catchment_id(self):
+        return self._catchment_id
+
+    @property
+    def catchment(self):
+        return self._catchment        
 
     def __repr__(self):
         return (
