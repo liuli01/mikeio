@@ -215,7 +215,7 @@ class Res1D:
         self._time_index = pd.DatetimeIndex(time_stamps)
         return self._time_index
 
-    def _get_values(self, points):
+    def _get_values_reach(self, points):
         df = pd.DataFrame()
         p = zip(points["variable"], points["reach"], points["chainage"])
         for variable_type, reach, chainage in p:
@@ -234,6 +234,12 @@ class Res1D:
         return df
 
     def _validate_queries(self, queries, chainage_tolerance=0.1):
+        reach_queries = [type(q) is QueryReachData for q in queries]
+        _validate_queries_reach(self, reach_queries, chainage_tolerance=0.1)
+        catchment_queries = [type(q) is QueryCatchmentData for q in queries]
+        _validate_queries_catchment(self, catchment_queries, chainage_tolerance=0.1)
+
+    def _validate_queries_reach(self, queries, chainage_tolerance=0.1):
         """Check whether the queries point to existing data in the file."""
         for q in queries:
             # Raise an error if the data type is not found globally
@@ -268,7 +274,11 @@ class Res1D:
                     raise DataNotFoundInFile(
                         f"Chainage {q.chainage} was not found.")
 
-    def _build_queries(self, queries):
+    def _validate_queries_catchment(self, queries):
+        """Check whether the queries point to existing data in the file."""
+        print('validation not implemented.')
+
+    def _build_queries_reach(self, queries):
         """"
         A query can be in an undefined state if reach_name and/or chainage
         isn't set. This function takes care of building lists of queries
@@ -309,7 +319,7 @@ class Res1D:
                     built_queries.append(q)
         return built_queries
 
-    def _find_points(self, queries, chainage_tolerance=0.1):
+    def _find_points_reach(self, queries, chainage_tolerance=0.1):
         """From a list of queries returns a dictionary with the required
         information for each requested point to extract its time series
         later on."""
@@ -357,10 +367,14 @@ class Res1D:
         -------
         pd.DataFrame
         """
+        type(queries) is QueryCatchmentData
+
         self._validate_queries(queries)
         built_queries = self._build_queries(queries)
         found_points = self._find_points(built_queries)
-        df = self._get_data(found_points)
+        
+        df = self._get_data_reach(found_points)
+        
         return df
 
 
@@ -438,7 +452,7 @@ class QueryCatchmentData:
     
     Parameters
     ----------
-    variable_type: str, optional
+    variable_type: str
         Either 'TotalRunOff', 'NetRainfall', 'BaseFlow', 'RootZoneStorage', 'SnowStorage',
             'SurfaceStorage', 'InterFlow', 'OverlandFlow', 'ActualEvaporation', 'ActualRainfall',
             or 'ZoneTemperature'
@@ -450,7 +464,6 @@ class QueryCatchmentData:
     --------
     `QueryCatchmentData('TotalRunOff', 'catchment1')` is a valid query.
     `QueryCatchmentData('SurfaceStorage')` requests all the SurfaceStorage for all the catchments.
-    `QueryCatchmentData('catchment1')` requests all the variables for that catchment.
     """
 
     allowed_data_types = DATA_TYPES_HANDLED_IN_CATCHMENT_QUERIES
@@ -462,7 +475,7 @@ class QueryCatchmentData:
 
     def _validate(self):
         vt = self.variable_type
-        cid = self.catchment_id
+        rn = self.catchment_id
 
         if not isinstance(vt, str):
             raise TypeError("variable_type must be a string.")
@@ -472,35 +485,18 @@ class QueryCatchmentData:
                 f"{', '.join(self.allowed_data_types)}."
             )
         if rn is not None and not isinstance(rn, str):
-            raise TypeError("reach_name must be either None or a string.")
-        if c is not None and not isinstance(c, (int, float)):
-            raise TypeError("chainage must be either None or a number.")
-        if rn is None and c is not None:
-            raise ValueError("chainage cannot be set if reach_name is None.")
+            raise TypeError("catchment_id must be either None or a string.")
 
     @property
     def variable_type(self):
         return self._variable_type
 
     @property
-    def reach_name(self):
-        return self._reach_name
-
-    @property
-    def chainage(self):
-        return self._chainage
-
-    @property
     def catchment_id(self):
         return self._catchment_id
 
-    @property
-    def catchment(self):
-        return self._catchment        
-
     def __repr__(self):
         return (
-            f"QueryData(variable_type='{self.variable_type}', "
-            f"reach_name='{self.reach_name}', "
-            f"chainage={self.chainage})"
+            f"QueryCatchmentData(variable_type='{self.variable_type}', "
+            f"catchment_id='{self.catchment_id})"
         )
