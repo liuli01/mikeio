@@ -337,39 +337,25 @@ class Res1D:
         isn't set. This function takes care of building lists of queries
         for these cases. Chainages are rounded to three decimal places.
 
-        >>> self._build_queries([QueryCatchmentData("WaterLevel", "reach1")])
+        >>> self._build_queries([QueryCatchmentData("WaterLevel", "catchment1")])
         [
             QueryCatchmentData("WaterLevel", "catchment1")
         ]
         """
         built_queries = []
         for q in queries:
-            # e.g. QueryCatchmentData("WaterLevel", "catchment1")
-            if q.catchment_id and q.chainage:
-                built_queries.append(q)
-                continue
-            # e.g QueryData("WaterLevel", "reach1") or QueryData("WaterLevel")
-            q_variable_type = q.variable_type
-            q_reach_name = q.reach_name
-            for reach, reach_name in zip(self._catchments, self.catchment_ids):
-                if q_reach_name is not None:  # When reach_name is set.
-                    if reach_name != q_reach_name:
-                        continue
-                data_types_in_reach = self._data_types_reach(reach)
-                if q.variable_type not in data_types_in_reach:
-                    continue
-                data_type_idx = data_types_in_reach.index(q.variable_type)
-                for curr_chain in self._chainages(reach, data_type_idx):
-                    if q_variable_type in DATA_TYPES_HANDLED_IN_QUERIES:
-                        chainage = curr_chain
-                    else:
-                        continue
-
-                    q = QueryData(
-                        q_variable_type, reach_name, round(chainage, 3)
-                    )
-                    built_queries.append(q)
+            built_queries.append(q)
         return built_queries
+
+    def _find_points_catchment(self, queries):
+        """From a list of queries returns a dictionary with the required
+        information for each requested point to extract its time series
+        later on."""
+
+        found_points = {}
+        for q in queries:
+            found_points[queries.variable_type] = catchment_id
+        return found_points
 
     def _find_points_reach(self, queries, chainage_tolerance=0.1):
         """From a list of queries returns a dictionary with the required
