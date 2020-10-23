@@ -120,13 +120,24 @@ class _Dfs123:
         dfs.Close()
 
     def _write(
-        self, filename, data, start_time, dt, items, coordinate, title,
+        self,
+        filename,
+        data,
+        start_time,
+        dt,
+        items,
+        coordinate,
+        title,
+        shape=None,
+        keep_open=False,
     ):
         self._write_handle_common_arguments(
             title, data, items, coordinate, start_time, dt
         )
 
-        shape = np.shape(data[0])
+        if not shape:
+            shape = np.shape(data[0])
+
         if self._ndim == 1:
             self._nx = shape[1]
         elif self._ndim == 2:
@@ -147,15 +158,17 @@ class _Dfs123:
             if not all(np.shape(d)[2] == self._nx for d in data):
                 raise DataDimensionMismatch()
 
-        dfs = self._setup_header(filename)
+        self._dfs = self._setup_header(filename)
 
-        deletevalue = dfs.FileInfo.DeleteValueFloat  # -1.0000000031710769e-30
+        self._deletevalue = (
+            self._dfs.FileInfo.DeleteValueFloat
+        )  # -1.0000000031710769e-30
 
         for i in range(self._n_timesteps):
             for item in range(self._n_items):
 
                 d = self._data[item][i]
-                d[np.isnan(d)] = deletevalue
+                d[np.isnan(d)] = self._deletevalue
 
                 if self._ndim == 1:
                     darray = to_dotnet_float_array(d)
@@ -165,9 +178,47 @@ class _Dfs123:
                     d = np.flipud(d)
                     darray = to_dotnet_float_array(d.reshape(d.size, 1)[:, 0])
 
-                dfs.WriteItemTimeStepNext(0, darray)
+                self._dfs.WriteItemTimeStepNext(0, darray)
 
-        dfs.Close()
+        if not keep_open:
+            self._dfs.Close()
+        else:
+            return self
+
+    def close(self):
+        "Finalize write for a dfsu file opened with `write(...,keep_open=True)`"
+        self._dfs.Close()
+
+    def append(self, data):
+        """Append to a dfs file opened with `write(...,keep_open=True)`
+
+        Parameters
+        -----------
+        data: list[np.array]
+        """
+
+        n_items = len(data)
+        n_time_steps = np.shape(data[0])[0]
+        for i in range(n_time_steps):
+            for item in range(n_items):
+                d = data[item][i]
+                d[np.isnan(d)] = self._deletevalue
+
+                if self._ndim == 1:
+                    darray = to_dotnet_float_array(d)
+
+                if self._ndim == 2:
+                    d = d.reshape(self.shape[1:])
+                    d = np.flipud(d)
+                    darray = to_dotnet_float_array(d.reshape(d.size, 1)[:, 0])
+
+                self._dfs.WriteItemTimeStepNext(0, darray)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self._dfs.Close()
 
     def _write_handle_common_arguments(
         self, title, data, items, coordinate, start_time, dt
@@ -176,8 +227,11 @@ class _Dfs123:
         if title is None:
             self._title = ""
 
-        self._n_timesteps = np.shape(data[0])[0]
         self._n_items = len(data)
+        if self._n_items > 0:
+            self._n_timesteps = np.shape(data[0])[0]
+        else:
+            self._n_timesteps = 0
 
         if coordinate is None:
             if self._projstr is not None:
@@ -424,3 +478,7 @@ class _Dfs123:
         """North to Y orientation
         """
         return self._orientation
+
+    @property
+    def coordinate(self):
+        return (self._projstr, self._longitude, self._latitude, self._orientation)

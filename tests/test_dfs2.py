@@ -140,6 +140,52 @@ def test_write_selected_item_to_new_file(tmpdir):
     assert dfs.orientation == dfs2.orientation
 
 
+def test_incremental_write(tmpdir):
+
+    filename = r"tests/testdata/random_two_item.dfs2"
+    dfs = Dfs2(filename)
+
+    outfilename = os.path.join(tmpdir.dirname, "simple.dfs2")
+
+    ds = dfs.read()
+
+    nt = len(ds.time)
+
+    items = ds.items.copy()
+
+    items[0].name = "New name"
+
+    ny = dfs.shape[1]
+    nx = dfs.shape[2]
+
+    dfsnew = Dfs2()
+
+    with dfsnew.write_header(
+        outfilename,
+        nx=nx,
+        ny=ny,
+        start_time=ds.time[0],
+        dt=3600,
+        items=items,
+        deletevalue=dfs.deletevalue,
+        coordinate=["UTM-33", 308124, 6098907, 0.0],
+    ) as f:
+        for i in range(nt):
+            ds = dfs.read(time_steps=[i])
+            f.append(ds)
+
+    dfs2 = Dfs2(outfilename)
+
+    assert dfs2.n_timesteps == nt
+    assert dfs2.n_items == 2
+    assert dfs2.items[0].name == "New name"
+    assert dfs.start_time == dfs2.start_time
+    assert dfs.projection_string == dfs2.projection_string
+    assert dfs.longitude == dfs2.longitude
+    assert dfs.latitude == dfs2.latitude
+    assert dfs.orientation == dfs2.orientation
+
+
 def test_repr():
 
     filename = r"tests/testdata/gebco_sound.dfs2"

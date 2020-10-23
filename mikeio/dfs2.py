@@ -101,6 +101,52 @@ class Dfs2(_Dfs123):
         self._dfs = DfsFileFactory.Dfs2FileOpen(self._filename)
         self._source = self._dfs
 
+    def write_header(
+        self,
+        filename,
+        nx,
+        ny,
+        start_time=None,
+        dt=None,
+        items=None,
+        title=None,
+        coordinate=None,
+        deletevalue=None,
+    ):
+        """Write the header of a new dfs2 file
+
+            Parameters
+            -----------
+            filename: str
+                full path to the new dfs2 file
+            shape: numpy shape
+                (ny, nx)
+            start_time: datetime, optional
+                start datetime, default is datetime.now()
+            dt: float, optional
+                The time step (in seconds)
+            items: list[ItemInfo], optional
+            title: str
+                title of the dfs2 file. Default is blank.
+            """
+
+        shape = (0, ny, nx)
+
+        if deletevalue:
+            self._deletevalue = deletevalue
+
+        return self.write(
+            filename=filename,
+            data=[],
+            start_time=start_time,
+            dt=dt,
+            items=items,
+            title=title,
+            coordinate=coordinate,
+            keep_open=True,
+            shape=shape,
+        )
+
     def write(
         self,
         filename,
@@ -112,6 +158,8 @@ class Dfs2(_Dfs123):
         dy=None,
         coordinate=None,
         title=None,
+        keep_open=False,
+        shape=None,
     ):
         """
         Create a dfs2 file
@@ -138,6 +186,8 @@ class Dfs2(_Dfs123):
             e.g. ['LONG/LAT', 12.4387, 55.2257, 327]
         title: str, optional
             title of the dfs2 file. Default is blank.
+        keep_open: bool, optional
+            Keep file open for appending
         """
 
         self._builder = Dfs2Builder.Create(title, "mikeio", 0)
@@ -151,7 +201,9 @@ class Dfs2(_Dfs123):
         if dy:
             self._dy = dy
 
-        self._write(filename, data, start_time, dt, items, coordinate, title)
+        return self._write(
+            filename, data, start_time, dt, items, coordinate, title, shape, keep_open
+        )
 
     def _set_spatial_axis(self):
         self._builder.SetSpatialAxis(
