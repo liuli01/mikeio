@@ -30,7 +30,7 @@ class _Dfs123:
     _builder = None
     _factory = None
     _deletevalue = None
-    _override_coordinates = False
+    _override_coordinates = False  # TODO this should not be necessary
     _timeseries_unit = TimeStepUnit.SECOND
     _dt = None
 
@@ -481,4 +481,5 @@ class _Dfs123:
 
     @property
     def coordinate(self):
+        # TODO update to return correct values for projected coordinates
         return (self._projstr, self._longitude, self._latitude, self._orientation)
