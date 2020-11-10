@@ -27,6 +27,8 @@ def get_valid_items_and_timesteps(dfs, items, time_steps):
 
     if isinstance(time_steps, str):
         parts = time_steps.split(",")
+        if len(parts) == 1: 
+            parts.append(parts[0])  # end=start
         if parts[0] == "":
             time_steps = slice(parts[1])  # stop only
         elif parts[1] == "":

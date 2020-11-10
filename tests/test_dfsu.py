@@ -871,6 +871,10 @@ def test_read_temporal_subset_string():
     ds = dfs.read(time_steps=",1985-08-06 11:30")
     assert len(ds.time) == 2
 
+    # start=end
+    ds = dfs.read(time_steps="1985-08-06 12:00")
+    assert len(ds.time) == 1
+
 
 def test_write_temporal_subset(tmpdir):
 
